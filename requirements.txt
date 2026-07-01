@@ -1,0 +1,6 @@
+streamlit>=1.32
+opencv-python>=4.9.0
+numpy>=1.26
+pandas>=2.2
+ultralytics>=8.2
+torch>=2.2
