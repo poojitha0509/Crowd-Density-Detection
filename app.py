@@ -4,7 +4,9 @@ Crowd Density Monitoring System
 Tech: OpenCV (HOG person detector) + Streamlit
 Run with:  streamlit run app.py
 """
-
+import os
+import time
+import tempfile
 import time
 import cv2
 import numpy as np
@@ -122,8 +124,11 @@ if source_type == "Image":
         file_bytes = np.asarray(bytearray(uploaded.read()), dtype=np.uint8)
         frame = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
         boxes, annotated = detect_people(frame, scale, conf_thr)
-        placeholder_frame.image(cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB),
-                                 caption="Detected people", use_container_width=True)
+        placeholder_frame.image(
+            cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB),
+            caption="Detected people",
+            width=700
+        )
         update_dashboard(len(boxes), frame.shape[0] * frame.shape[1])
     else:
         st.info("Upload an image from the sidebar to begin.")
@@ -131,31 +136,66 @@ if source_type == "Image":
 # ----------------------------------------------------------------------
 # VIDEO FILE MODE
 # ----------------------------------------------------------------------
+# ----------------------------------------------------------------------
+# VIDEO FILE MODE
+# ----------------------------------------------------------------------
 elif source_type == "Video file":
-    uploaded = st.sidebar.file_uploader("Upload a video", type=["mp4", "avi", "mov"])
+    uploaded = st.sidebar.file_uploader(
+        "Upload a video",
+        type=["mp4", "avi", "mov"]
+    )
+
     run = st.sidebar.button("Start processing")
+
     if uploaded is not None and run:
-        tmp_path = f"/tmp/{uploaded.name}"
+
+        # Create a temporary file that works on Windows/Linux/macOS
+        temp_dir = tempfile.gettempdir()
+        tmp_path = os.path.join(temp_dir, uploaded.name)
+
         with open(tmp_path, "wb") as f:
-            f.write(uploaded.read())
+            f.write(uploaded.getbuffer())
 
         cap = cv2.VideoCapture(tmp_path)
-        stop_btn = st.sidebar.button("Stop")
-        frame_idx = 0
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
-            frame_idx += 1
-            if frame_idx % frame_skip != 0:
-                continue
-            boxes, annotated = detect_people(frame, scale, conf_thr)
-            placeholder_frame.image(cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB),
-                                     caption=f"Frame {frame_idx}", use_container_width=True)
-            update_dashboard(len(boxes), frame.shape[0] * frame.shape[1])
-            if stop_btn:
-                break
-        cap.release()
+
+        if not cap.isOpened():
+            st.error("Could not open the uploaded video.")
+        else:
+            frame_idx = 0
+
+            while cap.isOpened():
+                ret, frame = cap.read()
+
+                if not ret:
+                    break
+
+                frame_idx += 1
+
+                # Skip frames for faster processing
+                if frame_idx % frame_skip != 0:
+                    continue
+
+                boxes, annotated = detect_people(
+                    frame,
+                    scale,
+                    conf_thr
+                )
+                placeholder_frame.image(
+                cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB),
+                caption=f"Frame {frame_idx}",
+                width=700
+            )
+                update_dashboard(
+                    len(boxes),
+                    frame.shape[0] * frame.shape[1]
+                )
+
+            cap.release()
+
+        # Delete the temporary video after processing
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
     else:
         st.info("Upload a video and click 'Start processing'.")
 
@@ -177,8 +217,11 @@ elif source_type == "Webcam":
             if frame_idx % frame_skip != 0:
                 continue
             boxes, annotated = detect_people(frame, scale, conf_thr)
-            placeholder_frame.image(cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB),
-                                     caption="Live feed", use_container_width=True)
+            placeholder_frame.image(
+            cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB),
+            caption=f"Frame {frame_idx}",
+            width=700
+        )
             update_dashboard(len(boxes), frame.shape[0] * frame.shape[1])
             run = st.sidebar.checkbox("Start webcam", value=True, key=f"chk_{frame_idx}")
         cap.release()
